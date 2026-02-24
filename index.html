@@ -1,0 +1,219 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PocketSplit – Friend Expense Splitter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    * { box-sizing: border-box; font-family: Inter, system-ui, sans-serif; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #1e293b, #020617);
+      color: #e5e7eb;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .app {
+      width: 100%;
+      max-width: 900px;
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    header { text-align: center; margin-bottom: 16px; }
+    header h1 { margin: 0; font-size: 2.2rem; letter-spacing: 0.5px; }
+    header p { opacity: 0.8; margin: 6px 0 0; }
+    .tip {
+      margin-top: 6px;
+      font-size: 0.9rem;
+      color: #9ca3af;
+      text-align: center;
+    }
+
+    .card {
+      background: #020617;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 18px;
+      border: 1px solid #1e293b;
+    }
+    h2 { margin-top: 0; font-size: 1.2rem; }
+
+    .row { display: flex; gap: 10px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+    input, select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #1e293b;
+      background: #020617;
+      color: #e5e7eb;
+      outline: none;
+    }
+
+    button {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform 0.15s ease;
+    }
+    .primary { background: linear-gradient(135deg, #22c55e, #16a34a); color: #022c22; }
+    .danger { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; }
+    .primary:hover, .danger:hover { transform: translateY(-1px); }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .chip {
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: #1e293b;
+      font-size: 0.9rem;
+    }
+
+    ul { list-style: none; padding: 0; margin: 10px 0 0; }
+    li {
+      background: #0b1220;
+      padding: 8px 10px;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      font-size: 0.9rem;
+      border: 1px solid #1e293b;
+    }
+
+    .summary {
+      margin-top: 10px;
+      padding: 10px;
+      background: #0b1220;
+      border-radius: 10px;
+      border: 1px dashed #1e293b;
+    }
+
+    .empty { opacity: 0.6; font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>PocketSplit</h1>
+      <p>Split expenses with friends, without awkward math.</p>
+      <div class="tip">Tip: Add your friends first, then start adding expenses.</div>
+    </header>
+
+    <div class="card">
+      <h2>Add Group Members</h2>
+      <div class="row">
+        <input id="personName" type="text" placeholder="Enter name" />
+        <button class="primary" onclick="addPerson()">Add</button>
+      </div>
+      <div id="peopleList" class="chips"></div>
+    </div>
+
+    <div class="card">
+      <h2>Add Expense</h2>
+      <div class="grid">
+        <input id="expenseTitle" type="text" placeholder="Expense title (e.g., Dinner)" />
+        <input id="expenseAmount" type="number" placeholder="Amount (₹)" />
+        <select id="paidBy"></select>
+      </div>
+      <button class="primary" style="margin-top:10px" onclick="addExpense()">Add Expense</button>
+      <ul id="expenseList"></ul>
+    </div>
+
+    <div class="card">
+      <h2>Settlement Summary</h2>
+      <div id="summary" class="summary"></div>
+      <button class="danger" style="margin-top:10px" onclick="resetAll()">Reset All</button>
+    </div>
+  </div>
+
+  <script>
+    let people = JSON.parse(localStorage.getItem("people")) || [];
+    let expenses = JSON.parse(localStorage.getItem("expenses")) || [];
+
+    function save() {
+      localStorage.setItem("people", JSON.stringify(people));
+      localStorage.setItem("expenses", JSON.stringify(expenses));
+    }
+
+    function addPerson() {
+      const name = document.getElementById("personName").value.trim();
+      if (!name || people.includes(name)) return;
+      people.push(name);
+      document.getElementById("personName").value = "";
+      save();
+      render();
+    }
+
+    function addExpense() {
+      const title = document.getElementById("expenseTitle").value.trim();
+      const amount = parseFloat(document.getElementById("expenseAmount").value);
+      const paidBy = document.getElementById("paidBy").value;
+      if (!title || !amount || !paidBy) return;
+
+      expenses.push({ title, amount, paidBy });
+      document.getElementById("expenseTitle").value = "";
+      document.getElementById("expenseAmount").value = "";
+      save();
+      render();
+    }
+
+    function calculateSettlement() {
+      if (people.length === 0) return {};
+      const total = expenses.reduce((s, e) => s + e.amount, 0);
+      const share = total / people.length;
+
+      const paid = {};
+      people.forEach(p => paid[p] = 0);
+      expenses.forEach(e => paid[e.paidBy] += e.amount);
+
+      const result = {};
+      people.forEach(p => result[p] = +(paid[p] - share).toFixed(2));
+      return result;
+    }
+
+    function resetAll() {
+      if (!confirm("Reset everything?")) return;
+      people = [];
+      expenses = [];
+      save();
+      render();
+    }
+
+    function render() {
+      const peopleList = document.getElementById("peopleList");
+      const paidBy = document.getElementById("paidBy");
+      const expenseList = document.getElementById("expenseList");
+      const summary = document.getElementById("summary");
+
+      peopleList.innerHTML = people.length
+        ? people.map(p => `<div class="chip">${p}</div>`).join("")
+        : `<div class="empty">No group members added yet</div>`;
+
+      paidBy.innerHTML = people.map(p => `<option value="${p}">${p}</option>`).join("");
+
+      expenseList.innerHTML = expenses.length
+        ? expenses.map(e => `<li>${e.title} – ₹${e.amount} (Paid by ${e.paidBy})</li>`).join("")
+        : `<li class="empty">No expenses recorded yet</li>`;
+
+      const settlement = calculateSettlement();
+      if (Object.keys(settlement).length === 0) {
+        summary.innerHTML = `<div class="empty">Add members and expenses to view settlement summary</div>`;
+      } else {
+        summary.innerHTML = Object.entries(settlement).map(([name, bal]) => {
+          if (bal > 0) return `<div>${name} should receive ₹${bal}</div>`;
+          if (bal < 0) return `<div>${name} owes ₹${Math.abs(bal)}</div>`;
+          return `<div>${name} is settled</div>`;
+        }).join("");
+      }
+    }
+
+    render();
+  </script>
+</body>
+</html>
